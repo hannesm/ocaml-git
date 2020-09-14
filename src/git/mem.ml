@@ -55,7 +55,6 @@ struct
     ; buffer: (buffer -> unit Lwt.t) -> unit Lwt.t
     ; compression: int
     ; values: (Hash.t, Value.t Lazy.t) Hashtbl.t
-    ; inflated: (Hash.t, kind * Cstruct.t) Hashtbl.t
     ; refs: (Reference.t, [`H of Hash.t | `R of Reference.t]) Hashtbl.t
     ; mutable head: Reference.head_contents option }
 
@@ -105,7 +104,6 @@ struct
       ; dotgit
       ; buffer
       ; values= Hashtbl.create 1024
-      ; inflated= Hashtbl.create 1024
       ; refs= Hashtbl.create 8
       ; head= None }
     in
@@ -114,7 +112,6 @@ struct
   let reset t =
     Log.info (fun l -> l "Reset memory store") ;
     Hashtbl.clear t.values ;
-    Hashtbl.clear t.inflated ;
     Hashtbl.clear t.refs ;
     Lwt.return (Ok ())
 
@@ -122,13 +119,6 @@ struct
 
   let write t value =
     let hash = Value.digest value in
-    let kind =
-      match value with
-      | Value.Commit _ -> `Commit
-      | Value.Blob _ -> `Blob
-      | Value.Tree _ -> `Tree
-      | Value.Tag _ -> `Tag
-    in
     let raw = Cstruct.create 0x100 in
     let etmp = Cstruct.create 0x100 in
     if Hashtbl.mem t.values hash then Lwt.return (Ok (hash, 0))
@@ -137,7 +127,6 @@ struct
       | Error `Never -> assert false
       | Ok inflated ->
           Hashtbl.add t.values hash (lazy value) ;
-          Hashtbl.add t.inflated hash (kind, Cstruct.of_string inflated) ;
           Lwt.return
             (Ok (hash, String.length inflated) : (Hash.t * int, error) result)
 
@@ -169,7 +158,6 @@ struct
               raise (Failure str)
           | Ok value -> value )
       in
-      Hashtbl.add t.inflated hash (kind, inflated) ;
       Hashtbl.add t.values hash value ;
       Lwt.return hash
 
