@@ -126,7 +126,7 @@ struct
       match Value.to_raw ~raw ~etmp value with
       | Error `Never -> assert false
       | Ok inflated ->
-          Hashtbl.add t.values hash (lazy value) ;
+          Hashtbl.replace t.values hash (lazy value) ;
           Lwt.return
             (Ok (hash, String.length inflated) : (Hash.t * int, error) result)
 
@@ -158,7 +158,7 @@ struct
               raise (Failure str)
           | Ok value -> value )
       in
-      Hashtbl.add t.values hash value ;
+      Hashtbl.replace t.values hash value ;
       Lwt.return hash
 
   let read_inflated t h =
