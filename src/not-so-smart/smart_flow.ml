@@ -29,6 +29,7 @@ let run :
             go (eof ())
         | Ok (`Input len) ->
             Log.debug (fun m -> m "Got %d/%d byte(s)." len max);
+            Log.debug (fun m -> m "%S" (Cstruct.to_string (Cstruct.sub tmp 0 len)));
             Cstruct.blit_to_bytes tmp 0 buffer off len;
             go (k len)
         | Error err ->

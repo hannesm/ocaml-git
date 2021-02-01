@@ -245,6 +245,8 @@ let prompt :
         safe k decoder)
     with
     | _exn (* XXX(dinosaure): [at_least_one_pkt] can raise an exception. *) ->
+      Format.eprintf ">>> %S.\n%!" (Printexc.to_string _exn);
+      Printexc.print_backtrace stderr;
       fail decoder `Invalid_pkt_line
   in
   go decoder.max
