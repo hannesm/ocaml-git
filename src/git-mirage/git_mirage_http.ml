@@ -16,6 +16,7 @@ let git_mirage_http_headers = Mimic.make ~name:"git-mirage-http-headers"
 let git_mirage_http_tls_config = Mimic.make ~name:"git-mirage-tls-config"
 
 module Make
+    (_ : Mirage_time.S)
     (Pclock : Mirage_clock.PCLOCK)
     (TCP : Tcpip.Tcp.S)
     (Happy_eyeballs : Mimic_happy_eyeballs.S with type flow = TCP.flow) : S =
