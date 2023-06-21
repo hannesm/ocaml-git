@@ -361,6 +361,7 @@ struct
   let fetch_v1 ?(uses_git_transport = false) ~push_stdout ~push_stderr
       ~capabilities path flow ?deepen ?want hostname store access fetch_cfg pack
       =
+    Log.info (fun m -> m "Smart_git.fetch_v1, calling Fetch.fetch_v1");
     let open Lwt.Infix in
     Lwt.try_bind
       (fun () ->
@@ -371,9 +372,11 @@ struct
         let v = String.sub payload off len in
         pack (Some (v, 0, len)))
       (fun refs ->
+        Log.info (fun m -> m "smart_git.fetch_v1, calling pack None in fun refs");
         pack None >>= fun () ->
         Mimic.close flow >>= fun () -> Lwt.return_ok refs)
     @@ fun exn ->
+    Log.info (fun m -> m "smart_git.fetch_v1, calling pack None in exn");
     pack None >>= fun () ->
     Mimic.close flow >>= fun () -> Lwt.fail exn
 
@@ -424,6 +427,7 @@ struct
       ?threads ~ctx (access, light_load, heavy_load) store edn ?(version = `V1)
       ?(capabilities = default_capabilities) ?deepen want t_pck t_idx ~src ~dst
       ~idx =
+    Log.info (fun m -> m "in smart_git.fetch");
     let open Rresult in
     let open Lwt.Infix in
     let hostname = edn.Endpoint.hostname in
@@ -443,13 +447,16 @@ struct
     let ctx = add_headers_for_fetching ~version ctx in
     Lwt.catch (fun () ->
         Mimic.unfold ctx >>? fun ress ->
+        Log.info (fun m -> m "in smart_git.fetch, calling mimic.connect");
         Mimic.connect ress >>= fun flow ->
+        Log.info (fun m -> m "in smart_git.fetch, connected");
         match flow, get_transmission ress, version with
         | Ok flow, Some (#transmission as transmission), `V1 -> (
             let fetch_cfg = Nss.Fetch.configuration capabilities in
             let uses_git_transport =
               match transmission with `Git -> true | `Exec -> false
             in
+            Log.info (fun m -> m "in smart_git.fetch, calling fetch_v1 and run");
             Lwt.both
               (fetch_v1 ~push_stdout ~push_stderr ~uses_git_transport
                  ~capabilities path flow ?deepen ~want hostname store access
@@ -457,12 +464,14 @@ struct
               (run ?threads ~light_load ~heavy_load stream t_pck t_idx ~src ~dst
                  ~idx)
             >>= fun (refs, idx) ->
+            Log.info (fun m -> m "in smart_git.fetch, done here");
             match refs, idx with
             | Ok refs, Ok uid -> Lwt.return_ok (`Pack (uid, refs))
             | (Error _ as err), _ -> Lwt.return err
             | Ok [], _ -> Lwt.return_ok `Empty
             | Ok _refs, (Error _ as err) -> Lwt.return err)
         | Ok flow, Some (`HTTP (uri, handshake)), `V1 -> (
+            Log.info (fun m -> m "in smart_git.fetch, with http remote");
             let fetch_cfg =
               Nss.Fetch.configuration ~stateless:true capabilities
             in
@@ -473,13 +482,16 @@ struct
             let uri1 =
               Fmt.str "%a/git-upload-pack" Uri.pp uri |> Uri.of_string
             in
+            Log.info (fun m -> m "in smart_git.fetch, calling (handshake, fetch_v1), and run");
             Lwt.both
               ( handshake ~uri0 ~uri1 flow >>= fun () ->
+                Log.info (fun m -> m "in smart_git.fetch, handshake is done");
                 fetch_v1 ~push_stdout ~push_stderr ~capabilities path flow
                   ?deepen ~want hostname store access fetch_cfg
                   pusher_with_logging )
               (run ~light_load ~heavy_load stream t_pck t_idx ~src ~dst ~idx)
             >>= fun (refs, idx) ->
+            Log.info (fun m -> m "in smart_git.fetch, done");
             match refs, idx with
             | Ok refs, Ok uid -> Lwt.return_ok (`Pack (uid, refs))
             | (Error _ as err), _ -> Lwt.return err

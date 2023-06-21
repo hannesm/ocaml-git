@@ -189,6 +189,7 @@ struct
   let fetch ?(push_stdout = ignore) ?(push_stderr = ignore) ?threads ~ctx
       endpoint t ?version ?capabilities ?deepen want ~src ~dst ~idx
       ~create_idx_stream ~create_pack_stream t_pck t_idx =
+    Log.info (fun m -> m "in sync fetch");
     let want, src_dst_mapping =
       match want with
       | (`All | `None) as x -> x, fun src -> [ src ]
@@ -214,13 +215,17 @@ struct
           `Some src_refs, src_dst_mapping
     in
     let ministore = Ministore.inj (t, Hashtbl.create 0x100) in
+    Log.info (fun m -> m "in sync fetch, calling smart_git.fetch");
     fetch ~push_stdout ~push_stderr ?threads ~ctx
       (access, lightly_load t, heavily_load t)
       ministore endpoint ?version ?capabilities ?deepen want t_pck t_idx ~src
       ~dst ~idx
     >>? function
-    | `Empty -> Lwt.return_ok None
+    | `Empty ->
+      Log.info (fun m -> m "in sync fetch, received empty");
+      Lwt.return_ok None
     | `Pack (uid, refs) ->
+        Log.info (fun m -> m "in sync fetch, received pack (now store.batch_write)");
         Log.debug (fun m -> m "Start to write many objects.");
         Store.batch_write t uid ~pck:(create_pack_stream ())
           ~idx:(create_idx_stream ())
@@ -239,7 +244,9 @@ struct
           let dst_refs = src_dst_mapping src_ref in
           Lwt_list.iter_p write_dst_ref dst_refs
         in
+        Log.info (fun m -> m "in sync fetch, calling update over refs");
         Lwt_list.iter_p update refs >>= fun () ->
+        Log.info (fun m -> m "in sync fetch, done");
         Lwt.return_ok (Some (uid, refs))
 
   let get_object_for_packer t hash =

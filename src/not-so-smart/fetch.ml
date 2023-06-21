@@ -104,17 +104,23 @@ struct
     let ctx = Smart.Context.make ~my_caps in
     let negotiator = Neg.make ~compare:Uid.compare in
     Neg.tips sched access store negotiator |> prj >>= fun () ->
+    Log.info (fun m -> m "Fetch.fetch_v1, calling smart_flow.run");
     Smart_flow.run sched fail io flow (prelude ctx) |> prj
     >>= fun (uids, refs) ->
+    Log.info (fun m -> m "Fetch.fetch_v1, smart_flow.run done");
     let hex =
       { Neg.to_hex = Uid.to_hex; of_hex = Uid.of_hex; compare = Uid.compare }
     in
+    Log.info (fun m -> m "Fetch.fetch_v1, calling find_common");
     Neg.find_common sched io flow fetch_cfg hex access store negotiator ctx
       ?deepen uids
     |> prj
     >>= function
-    | `Close -> return []
+    | `Close ->
+      Log.info (fun m -> m "Fetch.fetch_v1, close");
+      return []
     | `Continue res ->
+        Log.info (fun m -> m "Fetch.fetch_v1, continue");
         let recv_pack ctx =
           let open Smart in
           let side_band =
@@ -131,6 +137,7 @@ struct
           | `Stdout -> go ()
           | `Stderr -> go ()
         in
+        Log.info (fun m -> m "Fetch.fetch_v1, done");
         Log.debug (fun m -> m "Start to download PACK file.");
         go () >>= fun () -> return (List.combine refs uids)
 end

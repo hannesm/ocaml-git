@@ -78,7 +78,9 @@ let batch_write :
       Hashtbl.add store.inflated uid (kind, inflated);
     Lwt.return_unit
   in
-  iter index ~f
+  Log.info (fun m -> m "toplevel Mem.batch_write, now iterating");
+  iter index ~f >|= fun () ->
+  Log.info (fun m -> m "toplevel Mem.batch_write, iterating done")
 
 let failuref fmt = Fmt.kstr (fun err -> Failure err) fmt
 
@@ -338,9 +340,12 @@ module Make (Digestif : Digestif.S) = struct
       let len = min (String.length pck_contents - pos) len in
       Bigstringaf.of_string ~off:pos ~len pck_contents
     in
+    Log.info (fun m -> m "Mem.batch_write: call to batch_write");
     batch_write t ~uid_ln:Hash.length ~uid_rw:Hash.of_raw_string ~map ~iter
       pck_contents index
-    >>= fun () -> Lwt.return_ok ()
+    >>= fun () ->
+    Log.info (fun m -> m "Mem.batch_write: done");
+    Lwt.return_ok ()
 
   module Ref = struct
     module Graph = Reference.Map
@@ -486,20 +491,25 @@ module Sync (Git_store : Minimal.S) = struct
     let index = Carton.Dec.Idx.Device.create t_idx in
     let src = Cstruct_append.key t_pck in
     let dst = Cstruct_append.key t_pck in
+    Log.info (fun m -> m "Sync.fetch starting");
     let create_idx_stream () =
       Carton.Dec.Idx.Device.project t_idx index
       |> Cstruct.of_bigarray
       |> stream_of_cstruct
     in
+    Log.info (fun m -> m "Sync.fetch starting 2");
     let create_pack_stream () =
       let pack = Cstruct_append.project t_pck dst in
       stream_of_cstruct pack
     in
+    Log.info (fun m -> m "Sync.fetch calling fetch");
     fetch ~push_stdout ~push_stderr ?threads ~ctx edn store ?version
       ?capabilities ?deepen want ~src ~dst ~idx:index ~create_idx_stream
       ~create_pack_stream t_pck t_idx
     >>= fun res ->
+    Log.info (fun m -> m "Sync.fetch called fetch");
     let _dst = Sys.opaque_identity dst in
     let _src = Sys.opaque_identity src in
+    Log.info (fun m -> m "Sync.fetch done");
     Lwt.return res
 end
